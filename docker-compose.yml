@@ -1,0 +1,36 @@
+version: "3.9"
+services:
+  go-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.go
+    ports:
+      - "8080:8080"
+
+  rust-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.rust
+    ports:
+      - "8081:8080"
+
+  wrk:
+    image: williamyeh/wrk
+    depends_on:
+      - go-api
+      - rust-api
+    volumes:
+      - ./results:/results
+    entrypoint: [ "sh", "-c" ]
+    command: >
+      "sleep 5 &&
+       echo 'Seeding Go API...' &&
+       curl -s -X POST -H 'Content-Type: application/json' -d '{\"id\":\"1\",\"name\":\"Alice\"}' http://go-api:8080/users &&
+       echo 'Seeding Rust API...' &&
+       curl -s -X POST -H 'Content-Type: application/json' -d '{\"id\":\"1\",\"name\":\"Alice\"}' http://rust-api:8080/users &&
+
+       echo 'Benchmarking Go API...' &&
+       wrk -t4 -c100 -d10s http://go-api:8080/users/1 > /results/go.txt &&
+
+       echo 'Benchmarking Rust API...' &&
+       wrk -t4 -c100 -d10s http://rust-api:8080/users/1 > /results/rust.txt"
